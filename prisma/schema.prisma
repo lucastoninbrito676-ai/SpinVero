@@ -1,0 +1,556 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  PROFESSIONAL
+  CLUB
+}
+
+enum PlayerLevel {
+  INICIANTE
+  INTERMEDIARIO
+  AVANCADO
+  PROFISSIONAL
+}
+
+enum PlayerStyle {
+  OFENSIVO
+  DEFENSIVO
+  ALL_ROUND
+  COUNTER_BLOCK
+  TOPSPIN
+  CONTROLE
+}
+
+enum Hand {
+  DIREITA
+  ESQUERDA
+}
+
+enum Priority {
+  VELOCIDADE
+  CONTROLE
+  SPIN
+  EQUILIBRIO
+}
+
+enum ProductCategory {
+  BLADE
+  RUBBER
+  RACKET
+  ACCESSORY
+}
+
+enum Availability {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum Stiffness {
+  SOFT
+  MEDIUM
+  HARD
+}
+
+enum HandleType {
+  FLARED
+  STRAIGHT
+  ANATOMIC
+  CONICAL
+}
+
+enum Balance {
+  HEAD_HEAVY
+  EVEN
+  HANDLE_HEAVY
+}
+
+enum RubberType {
+  INVERTED
+  SHORT_PIPS
+  LONG_PIPS
+  ANTI_SPIN
+}
+
+enum Distance {
+  CLOSE
+  MID
+  FAR
+}
+
+enum AccessoryType {
+  BALL
+  CASE
+  PROTECTOR
+  GLUE
+  TOWEL
+  NET
+  APPAREL
+  OTHER
+}
+
+enum DataSourceType {
+  MOCK
+  MANUFACTURER
+  RETAILER
+  COMMUNITY
+}
+
+enum AnalysisStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum StrokeType {
+  FOREHAND
+  BACKHAND
+  SERVE
+  PUSH
+  TOPSPIN
+  SMASH
+}
+
+enum PostCategory {
+  EQUIPMENT
+  TECHNIQUE
+  TRAINING
+  COMPETITION
+  QUESTIONS
+  PROGRESS
+  GENERAL
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+  ACTIONED
+}
+
+enum TrainingStatus {
+  PLANNED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  avatarUrl    String?
+  role         UserRole      @default(USER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  profile        Profile?
+  sessions       AuthSession[]
+  analyses       Analysis[]
+  posts          Post[]
+  comments       Comment[]
+  likes          PostLike[]
+  reports        PostReport[]
+  reviews        ProductReview[]
+  trainings      Training[]
+  progress       Progress[]
+  achievements   UserAchievement[]
+  recommendations Recommendation[]
+  auditLogs      AuditLog[]
+
+  @@index([role])
+  @@index([createdAt])
+}
+
+model AuthSession {
+  id               String   @id @default(cuid())
+  userId           String
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  revokedAt        DateTime?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Profile {
+  id        String        @id @default(cuid())
+  userId    String        @unique
+  level     PlayerLevel?
+  style     PlayerStyle?
+  hand      Hand?
+  priority  Priority?
+  budget    Decimal?      @db.Decimal(10, 2)
+  strength  String?
+  problem   String?
+  goal      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([level, style])
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  logoUrl     String?
+  description String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  name           String
+  brandId        String
+  category       ProductCategory
+  description    String
+  price          Decimal         @db.Decimal(10, 2)
+  availability   Availability    @default(IN_STOCK)
+  stockQuantity  Int             @default(0)
+  rating         Decimal         @default(0) @db.Decimal(3, 2)
+  reviewCount    Int             @default(0)
+  sourceType     DataSourceType
+  sourceName     String
+  sourceUrl      String?
+  lastVerifiedAt DateTime?
+  recommendation Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  brand          Brand           @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  images         ProductImage[]
+  tags           ProductTag[]
+  bladeSpecs     BladeSpecs?
+  rubberSpecs    RubberSpecs?
+  racketSpecs    RacketSpecs?
+  accessorySpecs AccessorySpecs?
+  racketAsRacket RacketComponent[] @relation("RacketComponentsRacket")
+  racketAsBlade  RacketComponent[] @relation("RacketBlade")
+  racketAsFH     RacketComponent[] @relation("RacketForehand")
+  racketAsBH     RacketComponent[] @relation("RacketBackhand")
+  reviews        ProductReview[]
+  postLinks      PostEquipment[]
+
+  @@index([category])
+  @@index([brandId])
+  @@index([availability])
+  @@index([price])
+  @@index([category, availability, price])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  alt       String
+  sortOrder Int      @default(0)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  products ProductTag[]
+  postTags PostTag[]
+}
+
+model ProductTag {
+  productId String
+  tagId     String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([productId, tagId])
+  @@index([tagId])
+}
+
+model BladeSpecs {
+  productId    String      @id
+  speed        Decimal     @db.Decimal(3, 1)
+  control      Decimal     @db.Decimal(3, 1)
+  weight       Decimal     @db.Decimal(5, 1)
+  layers       Int
+  composition  Json
+  stiffness    Stiffness
+  handle       HandleType
+  balance      Balance
+  headWidth    Decimal?    @db.Decimal(5, 1)
+  headHeight   Decimal?    @db.Decimal(5, 1)
+  technology   String?
+  product      Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model RubberSpecs {
+  productId          String      @id
+  speed              Decimal     @db.Decimal(3, 1)
+  spin               Decimal     @db.Decimal(3, 1)
+  control            Decimal     @db.Decimal(3, 1)
+  hardness           Decimal     @db.Decimal(4, 1)
+  thicknesses        Json
+  type               RubberType
+  weight             Decimal?    @db.Decimal(5, 1)
+  sponge             String?
+  pips               String?
+  recommendedDistance Distance
+  product            Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model RacketSpecs {
+  productId       String   @id
+  speed           Decimal  @db.Decimal(3, 1)
+  spin            Decimal  @db.Decimal(3, 1)
+  control         Decimal  @db.Decimal(3, 1)
+  estimatedWeight Decimal  @db.Decimal(5, 1)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model AccessorySpecs {
+  productId String        @id
+  type      AccessoryType
+  details   String?
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model RacketComponent {
+  racketId        String
+  bladeId         String
+  forehandId      String
+  backhandId      String
+  racket          Product @relation("RacketComponentsRacket", fields: [racketId], references: [id], onDelete: Cascade)
+  blade           Product @relation("RacketBlade", fields: [bladeId], references: [id], onDelete: Restrict)
+  forehand       Product @relation("RacketForehand", fields: [forehandId], references: [id], onDelete: Restrict)
+  backhand       Product @relation("RacketBackhand", fields: [backhandId], references: [id], onDelete: Restrict)
+
+  @@id([racketId])
+  @@index([bladeId])
+  @@index([forehandId])
+  @@index([backhandId])
+}
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  rating    Int
+  title     String?
+  content   String
+  usageTime String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([productId, rating])
+}
+
+model Analysis {
+  id              String         @id @default(cuid())
+  userId          String
+  strokeType      StrokeType
+  status          AnalysisStatus @default(PROCESSING)
+  score           Int?
+  videoName       String?
+  videoSize       Int?
+  videoType       String?
+  videoDurationSec Int?
+  videoStorageKey  String?
+  thumbnailUrl     String?
+  providerId      String?
+  providerName    String?
+  simulated       Boolean        @default(true)
+  notice          String?
+  schemaVersion   Int            @default(1)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  completedAt     DateTime?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  result          AnalysisResult?
+
+  @@index([userId, createdAt])
+  @@index([userId, strokeType])
+}
+
+model AnalysisResult {
+  id             String   @id @default(cuid())
+  analysisId     String   @unique
+  techniqueScore Int
+  movementMetrics Json
+  strengths      Json
+  weaknesses     Json
+  recommendations Json
+  generatedAt    DateTime @default(now())
+  analysis       Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+}
+
+model Post {
+  id          String       @id @default(cuid())
+  authorId    String
+  title       String?
+  content     String
+  category    PostCategory
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  baseLikes   Int          @default(0)
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+  likes       PostLike[]
+  reports     PostReport[]
+  tags        PostTag[]
+  equipment   PostEquipment[]
+
+  @@index([authorId, createdAt])
+  @@index([category, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+}
+
+model PostReport {
+  id        String       @id @default(cuid())
+  postId    String
+  reporterId String
+  reason    String
+  status    ReportStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  reviewedAt DateTime?
+  post      Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reporter  User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, reporterId])
+  @@index([status, createdAt])
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@index([tagId])
+}
+
+model PostEquipment {
+  postId    String
+  productId String
+  post      Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@id([postId, productId])
+  @@index([productId])
+}
+
+model Training {
+  id          String         @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  durationMin Int?
+  status      TrainingStatus @default(PLANNED)
+  scheduledAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, scheduledAt])
+  @@index([userId, status])
+}
+
+model Progress {
+  id          String   @id @default(cuid())
+  userId      String
+  metric      String
+  score       Decimal  @db.Decimal(5, 2)
+  recordedAt  DateTime @default(now())
+  source      String?
+  analysisId  String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, metric, recordedAt])
+  @@index([analysisId])
+}
+
+model Achievement {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  name        String
+  description String
+  icon        String?
+  createdAt   DateTime          @default(now())
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achievementId])
+}
+
+model Recommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  status      String
+  totalPrice  Decimal? @db.Decimal(10, 2)
+  score       Decimal? @db.Decimal(5, 2)
+  payload     Json
+  generatedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, generatedAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId, createdAt])
+  @@index([userId, createdAt])
+}
